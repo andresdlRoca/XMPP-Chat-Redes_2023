@@ -19,145 +19,159 @@ class ServerData {
     }
 }
 
-const client = new net.Socket();
-let loggenIn = false;
+class Client_XMPP {
+    constructor(User, ServerData) {
+        this.client = new net.Socket();
+        this.loggenIn = false;
+        this.user = User;
+        this.serverData = ServerData;
+    };
 
-function showMenu(User) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-
-    console.log(`\nCurrent User: ${User.userWithDomain}`)
-    console.log('\nMenu:');
-    //Account administration
-    console.log('1. Send Message');
-    console.log('2. Close Session');
-    console.log('3. Register new user'); // Not sure if this should go here
-    console.log('4. Exit'); // Exit  - TODO: Will go down as I add more options
-
-    // Communication with others - WIP
-
-    // Menu options
-    rl.question('Select an option: ', (answer) => {
-        switch(answer) {
-            case '1':
-                sendMessage();
-                break;
-            case '2':
-                closeSession();
-                break;
-            case '3':
-                registerNewUser();
-                break;
-            case '4':
-                console.log("Exiting...");
-                client.end();
-                rl.close();
-                break;
-            default:
-                console.log('Invalid option');
-                showMenu();
-                break;
-        }
-    });
-}
-
-
-//TODO: Add a way to register a new user
-/*
-    Manages the initial connection to the server
-*/
-function connectToServer(userCredentials, serverData) {
-    client.connect(serverData.port, serverData.domain, () => {
-        console.log('Connected');
-        client.write(`<stream:stream to="${serverData.domain}" xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams" version="1.0">`);
-    });
-
-    client.on('data', data=> {
-        sendCredentials(client, data, userCredentials);
-    });
-
-    client.on('close', () => {
-        console.log('Connection closed');
-    });
-
-    client.on('error', (err) => {
-        console.log('Error: ', err);
-    });
-
-    client.on('end', () => {
-        console.log('Connection ended');
-    });
-
-};
-
-function sendCredentials(client, data, userCredentials) {
-    const incomingData = data.toString();
-
-    if(incomingData.includes('stream:features') && !loggenIn) {
-        console.log("Requesting access...")
-        // console.log(incomingData);
-        requestAccess(client, userCredentials);
-    } else if(incomingData.includes('success')) {
-        console.log('Logged in');
-        // client.write('</stream:stream>');
-        loggenIn = true;
-        showMenu(userCredentials);
-        // client.write(`<stream:stream to="${serverData.domain}" xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams" version="1.0">`);
-    } else if(incomingData.includes('failure')){
-        console.log('Wrong credentials, Authentication failed');
-        console.log('Error: ', incomingData);
-    } else if(incomingData.includes("iq")) {
-        // DO NOTHING
-    } else { //TODO: Add a way to manage first message when logging in.
-        console.log('Something went wrong');
-        console.log('Response: ', incomingData);
-        if(loggenIn) {
-            showMenu();
-        }
-    }
-};
-
-// Communication functions
-function sendMessage() {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-    let to = 'gon20362@alumchat.xyz';
-    let message = 'Hola desde el Codigo';
-
-    // rl.question('To: ', (answer) => {
-    //     to = answer;
-    // });
-    // rl.question('Message: ', (answer) => {
-    //     message = answer;
-    // });
-
-    try {
-        client.write(`<message to="${to}" type="chat"><body>${message}</body></message>`);
-    } catch (error) {
-        console.log('Error: ', error);
-    }
-
-    rl.question('To: ', (answer) => {
-        const to = answer;
-        rl.question('Message: ', (answer) => {
-            const message = answer;
-            rl.close();
+    showMenu = (user) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
         });
-    });
-}
+    
+        console.log(`\nCurrent User: ${user.userWithDomain}`)
+        console.log('\nMenu:');
+        //Account administration
+        console.log('1. Send Message');
+        console.log('2. Close Session');
+        console.log('3. Register new user'); // Not sure if this should go here
+        console.log('4. Exit'); // Exit  - TODO: Will go down as I add more options
+    
+        // Communication with others - WIP
+    
+        // Menu options
+        rl.question('Select an option: ', async(answer) => {
+            switch(answer) {
+                case '1':
+                    await this.sendMessage(this.client, this.user);
+                    break;
+                case '2':
+                    this.closeSession();
+                    break;
+                case '3':
+                    this.registerNewUser();
+                    break;
+                case '4':
+                    console.log("Exiting...");
+                    this.client.end();
+                    rl.close();
+                    break;
+                default:
+                    console.log('Invalid option');
+                    this.showMenu();
+                    break;
+            }
+        });
+    }
 
-async function requestAccess(client, userCredentials) {
-    Promise.resolve(client.write(`<auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="PLAIN">${Buffer.from(`\u0000${userCredentials.username}\u0000${userCredentials.password}`).toString('base64')}</auth>`));
-};
+    //TODO: Add a way to register a new user
+    /*
+        Manages the initial connection to the server
+    */
+    connectToServer = () => {
+        this.client.connect(this.serverData.port, this.serverData.domain, () => {
+            console.log('Connected');
+            this.client.write(`<stream:stream to="${this.serverData.domain}" xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams" version="1.0">`);
+        });
+
+        this.client.on('data', (data) => {
+            this.sendCredentials(data);
+        });
+    
+        this.client.on('close', () => {
+            console.log('Connection closed');
+        });
+    
+        this.client.on('error', (err) => {
+            console.log('Error: ', err);
+        });
+    
+        this.client.on('end', () => {
+            console.log('Connection ended');
+        });
+    };
+
+    sendCredentials = async(data) => {
+        const incomingData = data.toString();
+
+        if(incomingData.includes('stream:features') && !this.loggenIn) {
+            console.log("Requesting access...")
+            // console.log(incomingData);
+            await this.requestAccess(this.client, this.user);
+        } else if(incomingData.includes('success')) {
+            console.log('Logged in');
+            this.loggenIn = true;
+            // console.log('Incoming data: ', incomingData)
+            // const streamIdRegex = /<stream:stream.* id=['"](.*?)['"].*>/;
+            // const match = incomingData.match(streamIdRegex);
+            // if(match && match[1]) {
+            //     streamId = match[1];
+            //     console.log('Streamid:', streamId)
+            //     const bindingRequest = `<iq type="set" id="${streamId}"><bind xmlns="urn:ietf:params:xml:ns:xmpp-bind"><resource>alumchat</resource></bind></iq>`;
+            //     client.write(bindingRequest);
+            // } 
+
+            this.showMenu(this.user);
+            // client.write(`<stream:stream to="${serverData.domain}" xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams" version="1.0">`);
+        } else if(incomingData.includes('failure')){
+            console.log('Wrong credentials, Authentication failed');
+            console.log('Error: ', incomingData);
+        } else if(this.loggenIn && incomingData.includes("iq")) {
+            console.log('Incoming data:iq ', incomingData)
+        } else if(incomingData.includes("?xml version='1.0'")) {
+            // DO NOTHING
+        } else { //TODO: Add a way to manage first message when logging in.
+            console.log('Something went wrong');
+            console.log('Response: ', incomingData);
+            if(this.loggenIn) {
+                this.showMenu(this.user);
+            }
+        }
+    };
+
+    sendMessage = async(client, user) => {
+    // const rl = readline.createInterface({
+    //     input: process.stdin,
+    //     output: process.stdout
+    // });
+
+     // rl.question('To: ', (answer) => {
+    //     const to = answer;
+    //     rl.question('Message: ', (answer) => {
+    //         const message = answer;
+    //         rl.close();
+    //     });
+    // });
+        let to = 'gon20362@alumchat.xyz';
+        let message = 'Hola desde el Codigo';
+        console.log(user.userWithDomain);
+        try {
+            client.write(`<message 
+                to="${to}" 
+                from="${user.userWithDomain}" 
+                type="chat" 
+                xmlns="jabber:client"><body>${message}</body></message>`);
+        } catch (error) {
+            console.log('Error: ', error);
+        }
+
+    };
+
+    requestAccess = async(client, userCredentials) => {
+        client.write(`<auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="PLAIN">${Buffer.from(`\u0000${userCredentials.username}\u0000${userCredentials.password}`).toString('base64')}</auth>`)
+    };
+
+}
 
 // Running client
 const user = new User('andres20332', 'andres20332', 'andres20332@alumchat.xyz');
 const serverData = new ServerData('alumchat.xyz', 5222);
-connectToServer(user, serverData);
+const client = new Client_XMPP(user, serverData);
+client.connectToServer();
 
 
 // ---- CODIGO CON LIBRERIA @XMPP/Client ---- 
