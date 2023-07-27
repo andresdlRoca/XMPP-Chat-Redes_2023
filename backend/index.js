@@ -126,7 +126,7 @@ function sendMessage() {
         output: process.stdout
     });
     let to = 'gon20362@alumchat.xyz';
-    let message = 'Gay el que lo lea (Codigo)';
+    let message = 'Hola desde el Codigo';
 
     // rl.question('To: ', (answer) => {
     //     to = answer;
