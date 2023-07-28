@@ -25,7 +25,8 @@ class Client_XMPP {
         console.log(`\nCurrent User: ${this.username}`);
         console.log('\nMenu:');
         console.log('1. Send Message');
-        console.log('2. Delete account from server')
+        console.log('2. Delete account from server');
+        console.log('3. Register new user');
 
         //Account administration
         console.log('3. Close Session'); // Exit  - TODO: Will go down as I add more options
@@ -58,6 +59,9 @@ class Client_XMPP {
                     });
                     break;
                 case '3':
+                    this.registerUser();
+                    break;
+                case '4':
                     console.log("Exiting...");
                     const disconnect = async() => {
                         await this.xmpp.send(xml("presence", {type: "unavailable"}))
@@ -78,66 +82,89 @@ class Client_XMPP {
 
     async connect() {
         this.xmpp = client({
-        service: this.service,
-        domain: this.domain,
-        username: this.username,
-        password: this.password,
+            service: this.service,
+            domain: this.domain,
+            username: this.username,
+            password: this.password,
         });
 
-    this.xmpp.on("error", (err) => {
-      console.error(err);
-    });
+        this.xmpp.on("error", (err) => {
+            console.error(err);
+        });
 
-    this.xmpp.on("online", async () => {
-      await this.xmpp.send(xml("presence"));
-    });
+        this.xmpp.on("online", async () => {
+            await this.xmpp.send(xml("presence"));
+        });
 
-    await this.xmpp.start();
-  };
-
-  async registerUser() {
-    this.xmpp = client({
-      service: this.service,
-      domain: this.domain,
-      username: this.username,
-      password: this.password,
-    });
-
-    const {iqCaller} = this.xmpp
-    console.log(iqCaller);
-
-    this.xmpp.on("error", (err) => {
-      console.error(err);
-    });
-
-    this.xmpp.on("online", async () => {
-        console.log("Online presence set!")
-        await this.xmpp.send(xml("presence"));
-    });
-
-    await this.xmpp.start();
-  }
-
-  async sendMessage(destinatario, mensaje) {
-    if (!this.xmpp) {
-      throw new Error("El cliente XMPP no está conectado. Primero llama al método 'connect()'.");
+        await this.xmpp.start();
     };
 
-    const message = xml(
-      "message",
-      { type: "chat", to: destinatario + "@alumchat.xyz" },
-      xml("body", {}, mensaje)
-    );
+    async registerUser() {
+        this.xmpp = client({
+            service: this.service,
+            domain: this.domain,
+            username: this.username,
+            password: this.password,
+        });
 
-    await this.xmpp.send(message);
-  };
+        this.xmpp.reconnect.stop();
+        this.xmpp.timeout = 5000;
+
+        this.xmpp.on("online", async (address) => {
+            console.log("Online!");
+            await this.xmpp.iqCaller.request(
+              xml('iq', {type: 'get', to: 'alumchat.xyz'},
+                xml('query', {xmlns: 'jabber:iq:register'})
+              )
+            );
+            await this.xmpp.iqCaller.set(
+              xml("query", {xmlns: "jabber:iq:register"},
+                xml("username", {}, `"${this.username}"`),
+                xml("password", {}, `"${this.password}"`),
+                xml("email", {}, "email@email.com")
+              ),
+              'alumchat.xyz'
+            )
+          });
+        
+        this.xmpp.on("status", (status) => {
+            console.debug("status", status);
+        });
+
+        this.xmpp.on("stanza", async (stanza) => {
+            console.log("Incoming stanza: ", stanza.toString());
+        });
+
+        this.xmpp.on("error", (err) => {
+            console.error(err);
+        });
+
+
+
+        await this.xmpp.start();
+    }
+
+    async sendMessage(destinatario, mensaje) {
+        if (!this.xmpp) {
+        throw new Error("El cliente XMPP no está conectado. Primero llama al método 'connect()'.");
+        };
+
+        const message = xml(
+        "message",
+        { type: "chat", to: destinatario + "@alumchat.xyz" },
+        xml("body", {}, mensaje)
+        );
+
+        await this.xmpp.send(message);
+    };
 
 };
 
 async function main() {
-    const client = new Client_XMPP("andres20332", "andres20332");
-    await client.connect();
-    client.showMenu();
+    loginMenu();
+    // const client = new Client_XMPP("andres20332", "andres20332");
+    // await client.connect();
+    // client.showMenu();
 };
 
 async function loginMenu() {
@@ -202,6 +229,7 @@ async function loginMenu() {
             case '3':
                 console.log("Exiting...");
                 rl.close();
+                return;
                 break;
             default:
                 console.log("Invalid option");
