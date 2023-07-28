@@ -25,9 +25,9 @@ class Client_XMPP {
         console.log(`\nCurrent User: ${this.username}`);
         console.log('\nMenu:');
         console.log('1. Send Message');
+        console.log('2. Delete account from server')
 
         //Account administration
-        console.log('2. Register new user'); // Not sure if this should go here
         console.log('3. Close Session'); // Exit  - TODO: Will go down as I add more options
 
         // Communication with others - WIP
@@ -44,8 +44,10 @@ class Client_XMPP {
                     });
                     break;
                 case '2':
-                    this.registerNewUser();
-                    break;
+                    console.log("Deleting account...");
+                    console.log("But not yet actually...");
+                    rl.close();
+                    this.showMenu();
                 case '3':
                     console.log("Exiting...");
                     const disconnect = async() => {
@@ -62,7 +64,7 @@ class Client_XMPP {
             };
         });
 
-    }
+    };
 
   async connect() {
     this.xmpp = client({
@@ -82,21 +84,28 @@ class Client_XMPP {
     });
 
     await this.xmpp.start().then(console.log("--- Logged in succesfully ---")).catch(console.error);
-  }
+  };
 
   async sendMessage(destinatario, mensaje) {
     if (!this.xmpp) {
       throw new Error("El cliente XMPP no está conectado. Primero llama al método 'connect()'.");
-    }
+    };
 
     const message = xml(
       "message",
-      { type: "chat", to: destinatario },
+      { type: "chat", to: destinatario + "@alumchat.xyz" },
       xml("body", {}, mensaje)
     );
 
     await this.xmpp.send(message);
-  }
+  };
+
+};
+
+async function registerUser(username, password) {
+    const client = new Client_XMPP(username, password);
+    await client.connect();
+    client.showMenu();
 }
 
 async function main() {
@@ -132,7 +141,7 @@ async function loginMenu() {
                     rl.question("Enter your password: ", async(password) => {
                         const client = new Client_XMPP(username, password);
                         await client.connect();
-                        client.showMenu();
+                        registerUser(username, password);
                     });
                 });
                 break;
