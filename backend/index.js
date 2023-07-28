@@ -16,7 +16,7 @@ class Client_XMPP {
         this.xmpp = null;
     }
 
-    showMenu = () => {
+    showMenu = async() => {
         const rl = readline.createInterface({
             input : process.stdin,
             output : process.stdout
@@ -33,21 +33,30 @@ class Client_XMPP {
         // Communication with others - WIP
 
         //Menu options
-        rl.question('Select an option: ', (answer) => {
+        rl.question('Select an option: ', async(answer) => {
             switch(answer) {
                 case '1':
                     rl.question('Enter the user you want to send the message to: ', (user) => {
                         rl.question('Enter the message you want to send: ', async(message) => {
                             await this.sendMessage(user, message);
-                            this.showMenu();
+                            rl.close();
+                            await this.showMenu();
                         });
                     });
                     break;
                 case '2':
-                    console.log("Deleting account...");
-                    console.log("But not yet actually...");
-                    rl.close();
-                    this.showMenu();
+                    rl.question("Are you sure about this? (y/n): ", async(choice) => {
+                        if(choice == 'y') {
+                            console.log("Deleting account...");
+                            console.log("But not yet actually...");
+                            rl.close();
+                            await loginMenu();
+                        } else {
+                            rl.close();
+                            await this.showMenu();
+                        }
+                    });
+                    break;
                 case '3':
                     console.log("Exiting...");
                     const disconnect = async() => {
@@ -59,21 +68,21 @@ class Client_XMPP {
                     break;
                 default:
                     console.log('Invalid option');
-                    this.showMenu();
+                    rl.close();
+                    await this.showMenu();
                     break;
             };
         });
 
     };
 
-  async connect() {
-    this.xmpp = client({
-      service: this.service,
-      domain: this.domain,
-      username: this.username,
-      password: this.password,
-    });
-
+    async connect() {
+        this.xmpp = client({
+        service: this.service,
+        domain: this.domain,
+        username: this.username,
+        password: this.password,
+        });
 
     this.xmpp.on("error", (err) => {
       console.error(err);
@@ -83,8 +92,31 @@ class Client_XMPP {
       await this.xmpp.send(xml("presence"));
     });
 
-    await this.xmpp.start().then(console.log("--- Logged in succesfully ---")).catch(console.error);
+    await this.xmpp.start();
   };
+
+  async registerUser() {
+    this.xmpp = client({
+      service: this.service,
+      domain: this.domain,
+      username: this.username,
+      password: this.password,
+    });
+
+    const {iqCaller} = this.xmpp
+    console.log(iqCaller);
+
+    this.xmpp.on("error", (err) => {
+      console.error(err);
+    });
+
+    this.xmpp.on("online", async () => {
+        console.log("Online presence set!")
+        await this.xmpp.send(xml("presence"));
+    });
+
+    await this.xmpp.start();
+  }
 
   async sendMessage(destinatario, mensaje) {
     if (!this.xmpp) {
@@ -101,12 +133,6 @@ class Client_XMPP {
   };
 
 };
-
-async function registerUser(username, password) {
-    const client = new Client_XMPP(username, password);
-    await client.connect();
-    client.showMenu();
-}
 
 async function main() {
     const client = new Client_XMPP("andres20332", "andres20332");
@@ -131,8 +157,23 @@ async function loginMenu() {
                 rl.question("Enter your username: ", (username) => {
                     rl.question("Enter your password: ", async(password) => {
                         const client = new Client_XMPP(username, password);
-                        await client.connect();
-                        client.showMenu();
+                        let loginState = false
+                        try {
+                            await client.connect();
+                            loginState = true;
+                        } catch (error) {
+                            console.log("Error logging in");
+                            rl.close();
+                            loginMenu();
+                        }
+                        if(loginState == true) {
+                            console.log("Logged in succesfully");
+                            rl.close();
+                            client.showMenu();
+                        }
+
+
+
                     });
                 });
                 break;
@@ -140,8 +181,21 @@ async function loginMenu() {
                 rl.question("Enter your username: ", (username) => {
                     rl.question("Enter your password: ", async(password) => {
                         const client = new Client_XMPP(username, password);
-                        await client.connect();
-                        registerUser(username, password);
+                        let registerState = false;
+                        try {
+                            await client.registerUser();
+                            registerState = true;
+                        } catch (error) {
+                            console.log("Error registering user");
+                            rl.close();
+                            loginMenu();
+                        }
+                        if(registerState == true) {
+                            console.log("User registered succesfully");
+                            await client.connect();
+                            rl.close();
+                            client.showMenu();
+                        }
                     });
                 });
                 break;
@@ -151,6 +205,7 @@ async function loginMenu() {
                 break;
             default:
                 console.log("Invalid option");
+                rl.close();
                 loginMenu();
                 break;
         }
