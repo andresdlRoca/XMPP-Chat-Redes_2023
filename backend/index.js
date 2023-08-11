@@ -27,9 +27,16 @@ class Client_XMPP {
         console.log('1. Send Message');
         console.log('2. Delete account from server');
         console.log('3. Register new user');
+        console.log('4. Mostrar todos los contactos y su estado');
+        console.log('5. Agregar un usuario a los contactos');
+        console.log('6. Mostrar detalles de un usuario');
+        console.log('7. Mensaje directo');
+        console.log('8. Conversacion grupal');
+        console.log('9. Definir mensaje de presencia');
+        // TODO: Enviar/Recibir notificaciones y archivos
 
         //Account administration
-        console.log('3. Close Session'); // Exit  - TODO: Will go down as I add more options
+        console.log('10. Close Session'); // Exit  - TODO: Will go down as I add more options
 
         // Communication with others - WIP
 
@@ -62,6 +69,36 @@ class Client_XMPP {
                     this.registerUser();
                     break;
                 case '4':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '5':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '6':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '7':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '8':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '9':
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '10':
                     console.log("Exiting...");
                     const disconnect = async() => {
                         await this.xmpp.send(xml("presence", {type: "unavailable"}))
@@ -229,7 +266,6 @@ async function loginMenu() {
             case '3':
                 console.log("Exiting...");
                 rl.close();
-                return;
                 break;
             default:
                 console.log("Invalid option");
