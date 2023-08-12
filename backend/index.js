@@ -115,9 +115,12 @@ class Client_XMPP {
                     await this.showMenu();
                     break;
                 case '8': // Set presence message
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
+                    rl.question("Enter your presence state: ", async(presenceState) => {
+                        rl.question("Enter your presence message: ", async(message) => {
+                            await this.setPresenceMessage(presenceState, message);
+                            rl.close();
+                        });
+                    });
                     break;
                 case '9':
                     console.log("Exiting...");
@@ -209,6 +212,14 @@ class Client_XMPP {
 
     async showSubscriptionsRequests() {
         // TODO: Implementar array que guarde las solicitudes de contacto
+    };
+
+    async setPresenceMessage(presenceState, message) {
+        const presence = xml("presence", {}, xml('show', {}, presenceState), xml('status', {}, message));
+        await this.xmpp.send(presence);
+
+        console.log("Presence status and message set to: ", presenceState, message);
+        this.showMenu();
     };
 
     async mostrarUsuarios() {
