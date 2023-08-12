@@ -2,10 +2,14 @@ const express = require('express');
 const readline = require('readline');
 const { client, xml } = require("@xmpp/client");
 const debug = require("@xmpp/debug");
+const { join } = require("path");
+const net = require("net");
+const fetch = require("node-fetch");
 
 app = express();
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+const MAX_LENGTH = 50;
 
 class Client_XMPP {
     constructor(username, password, service = "xmpp://alumchat.xyz:5222", domain = "alumchat.xyz") {
@@ -43,7 +47,7 @@ class Client_XMPP {
         //Menu options
         rl.question('Select an option: ', async(answer) => {
             switch(answer) {
-                case '1':
+                case '1': // Send message
                     rl.question('Enter the user you want to send the message to: ', (user) => {
                         rl.question('Enter the message you want to send: ', async(message) => {
                             await this.sendMessage(user, message);
@@ -52,7 +56,7 @@ class Client_XMPP {
                         });
                     });
                     break;
-                case '2':
+                case '2': // Delete account
                     rl.question("Are you sure about this? (y/n): ", async(choice) => {
                         if(choice == 'y') {
                             console.log("Deleting account...");
@@ -65,35 +69,57 @@ class Client_XMPP {
                         }
                     });
                     break;
-                case '3':
+                case '3': // Register new user
                     this.registerUser();
                     break;
-                case '4':
+                case '4': // Show all contacts and their status
+                    await this.mostrarUsuarios();
+                    await this.showMenu();
+                    break;
+                case '5': // Add user to contacts
+                    
+                    console.log("1. Agregar usuario a contactos");
+                    console.log("2. Aceptar solicitudes pendientes");
+                
+                    rl.question("Elige tu opcion: ", async(answer) => {
+
+                        switch (answer) {
+                            case '1': // Add user to contacts
+                                rl.question("Enter the user you want to add: ", async(user) => {
+                                    await this.addContacts(user);
+                                    rl.close();
+                                    await this.showMenu();
+                                });
+                                break;
+                            case '2': // Accept pending requests
+                                console.log("Not implemented yet");
+                                rl.close();
+                                await this.showMenu();
+                                break;
+                            default:
+                                console.log("Invalid option");
+                                rl.close();
+                                await this.showMenu();
+                                break;
+                        };
+                    });
+                    break;
+                case '6': // Show user details
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '5':
+                case '7': // Direct message
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '6':
+                case '8': // Group conversation
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '7':
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;
-                case '8':
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;
-                case '9':
+                case '9': // Set presence message
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
@@ -123,6 +149,10 @@ class Client_XMPP {
             domain: this.domain,
             username: this.username,
             password: this.password,
+            terminal: true,
+            tls: {
+                rejectUnauthorized: false
+            },
         });
 
         this.xmpp.on("error", (err) => {
@@ -130,10 +160,70 @@ class Client_XMPP {
         });
 
         this.xmpp.on("online", async () => {
-            await this.xmpp.send(xml("presence"));
+            await this.xmpp.send(xml("presence", {type: "available"}));
         });
 
         await this.xmpp.start();
+    };
+
+    async addContacts(jid) {
+
+        const presence = xml("presence", {type: "subscribe", to: jid + "@alumchat.xyz"});
+        this.xmpp.send(presence).then(() => {
+            console.log("Solicitud de contacto enviada a: ", jid);
+            this.showMenu();
+        }).catch((err) => {
+            console.error("Error al agregar contacto: ", err);
+        });
+    };
+
+    async showSubscriptionsRequests() {
+        // TODO: Implementar array que guarde las solicitudes de contacto
+    };
+
+    async mostrarUsuarios() {
+        const requestContacts = xml(
+            "iq",
+            {type: "get", id: "roster"},
+            xml("query", {xmlns: "jabber:iq:roster"})
+        );
+
+        this.xmpp.send(requestContacts)
+        .then(() => {
+            console.log("Solicitando contacos...");
+        }).catch((err) => {
+            console.error("Error al solicitar contactos: ", err);
+        });
+
+        this.xmpp.on("stanza", (stanza) => {
+            if (stanza.is("iq") && stanza.attrs.type === "result") {
+                const contacts = stanza.getChild("query", "jabber:iq:roster").getChildren('item');
+                
+                console.log("Lista de contactos: ");
+                contacts.forEach((contact) => {
+                    console.log("JID", contact.attrs.jid);
+                    console.log("Name", contact.attrs.name);
+                    console.log("Subscription", contact.attrs.subscription);
+                });
+
+                this.xmpp.on("presence", (presence) => {
+                    const from = presence.attrs.from;
+                    const show = presence.getChild("show");
+                    const status = presence.getChild("status");
+
+                    const contact = contacts.find((contact) => contact.attrs.jid === from);
+                    if(contact) {
+                        const jid = contact.attrs.jid;
+                        const name = contact.attrs.name;
+                        const subscription = contact.attrs.subscription;
+                        console.log("Contacto:", jid, "Name:", name, "Subscription:", subscription);
+                    } else {
+                        console.log("Contacto:", from, "Show:", show, "Status:", status);
+                    }
+
+                })
+            }
+            });
     };
 
     async registerUser() {
@@ -198,10 +288,10 @@ class Client_XMPP {
 };
 
 async function main() {
-    loginMenu();
-    // const client = new Client_XMPP("andres20332", "andres20332");
-    // await client.connect();
-    // client.showMenu();
+    // loginMenu();
+    const client = new Client_XMPP("andres2002", "andres2002");
+    await client.connect();
+    client.showMenu();
 };
 
 async function loginMenu() {
