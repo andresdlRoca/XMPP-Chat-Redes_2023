@@ -34,13 +34,12 @@ class Client_XMPP {
         console.log('4. Mostrar todos los contactos y su estado');
         console.log('5. Agregar un usuario a los contactos');
         console.log('6. Mostrar detalles de un usuario');
-        console.log('7. Mensaje directo');
-        console.log('8. Conversacion grupal');
-        console.log('9. Definir mensaje de presencia');
+        console.log('7. Conversacion grupal');
+        console.log('8. Definir mensaje de presencia');
         // TODO: Enviar/Recibir notificaciones y archivos
 
         //Account administration
-        console.log('10. Close Session'); // Exit  - TODO: Will go down as I add more options
+        console.log('9. Close Session'); // Exit  - TODO: Will go down as I add more options
 
         // Communication with others - WIP
 
@@ -105,26 +104,22 @@ class Client_XMPP {
                     });
                     break;
                 case '6': // Show user details
+                    rl.question("Enter the user you want to see the details of: ", async(user) => {
+                        await this.showUserDetails(user);
+                        rl.close();
+                    });
+                    break;
+                case '7': // Group conversation
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '7': // Direct message
+                case '8': // Set presence message
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '8': // Group conversation
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;
-                case '9': // Set presence message
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;
-                case '10':
+                case '9':
                     console.log("Exiting...");
                     const disconnect = async() => {
                         await this.xmpp.send(xml("presence", {type: "unavailable"}))
@@ -175,6 +170,41 @@ class Client_XMPP {
         }).catch((err) => {
             console.error("Error al agregar contacto: ", err);
         });
+    };
+
+    async showUserDetails(jid) {
+        const username = jid + "@alumchat.xyz";
+
+        this.xmpp.on("stanza", (stanza) => {
+            if(stanza.is("iq") && stanza.attrs.type === "result") {
+                const users = stanza.getChild("query", "jabber:iq:roster").getChildren('item');
+                const user = users.find((user) => user.attrs.jid === username);
+                if(user) {
+                    const jid = user.attrs.jid;
+                    const name = user.attrs.name;
+                    const subscription = user.attrs.subscription;
+                    console.log("Contact:", jid, "Name:", name, "Subscription:", subscription);
+                } else {
+                    console.log("No se encontró el usuario");
+                }
+
+                this.showMenu();
+            }
+        });
+
+        const requestContacts = xml(
+            "iq",
+            {type: "get", id: "roster"},
+            xml("query", {xmlns: "jabber:iq:roster"})
+        );
+
+        this.xmpp.send(requestContacts)
+        .then(() => {
+            console.log("Requesting Contacts...");
+        }).catch((err) => {
+            console.error("Error when requesting contacts: ", err);
+        });
+
     };
 
     async showSubscriptionsRequests() {
