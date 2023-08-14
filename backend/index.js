@@ -66,9 +66,9 @@ class Client_XMPP {
                     rl.question("Are you sure about this? (y/n): ", async(choice) => {
                         if(choice == 'y') {
                             console.log("Deleting account...");
-                            console.log("But not yet actually...");
+                            await this.deleteAccount();
                             rl.close();
-                            await loginMenu();
+                            loginMenu();
                         } else {
                             rl.close();
                             await this.showMenu();
@@ -155,6 +155,16 @@ class Client_XMPP {
         });
 
     };
+
+    async deleteAccount() {
+        const deleteRequest = xml("iq", {type: "set", id: "unreg1"}, xml("query", {xmlns: "jabber:iq:register"}, xml("remove", {})));
+        this.xmpp.send(deleteRequest).then(() => {
+            console.log("Account deleted succesfully");
+            this.xmpp.stop();
+        }).catch((err) => {
+            console.error("Error when deleting account: ", err);
+        });
+    }
 
     async connect() {
         this.xmpp = client({
