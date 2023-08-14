@@ -4,12 +4,12 @@ const { client, xml } = require("@xmpp/client");
 const debug = require("@xmpp/debug");
 const { join } = require("path");
 const net = require("net");
+const netClient = require("net").Socket();
 const fetch = require("node-fetch");
 
 app = express();
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-const MAX_LENGTH = 50;
 
 class Client_XMPP {
     constructor(username, password, service = "xmpp://alumchat.xyz:5222", domain = "alumchat.xyz") {
@@ -18,7 +18,13 @@ class Client_XMPP {
         this.service = service;
         this.domain = domain;
         this.xmpp = null;
+        this.loginState = false;
+        this.MAX_LENGTH = 100;
+        this.messages = [];
+        this.receivedSubscriptions = [];
+        this.receivedGroupChatInvites = [];
     }
+
 
     showMenu = async() => {
         const rl = readline.createInterface({
@@ -28,18 +34,19 @@ class Client_XMPP {
 
         console.log(`\nCurrent User: ${this.username}`);
         console.log('\nMenu:');
-        console.log('1. Send Message');
-        console.log('2. Delete account from server');
-        console.log('3. Register new user');
-        console.log('4. Mostrar todos los contactos y su estado');
-        console.log('5. Agregar un usuario a los contactos');
-        console.log('6. Mostrar detalles de un usuario');
-        console.log('7. Conversacion grupal');
-        console.log('8. Definir mensaje de presencia');
-        // TODO: Enviar/Recibir notificaciones y archivos
+        console.log('1. Send Message'); //DONE
+        console.log('2. Delete account from server'); //PENDING
+        console.log('3. Show contacts and their info');//DONE
+        console.log('4. Add users as contacts'); //TODO: Subscription list
+        console.log('5. Show details of a user'); //DONE
+        console.log('6. Group chatting'); // PENDING
+        console.log('7. Set presence message'); //DONE
+        console.log('8. Send/Receive files');// PENDING
+        // TODO: Enviar/Recibir archivos
+        console.log('9. Send/Receive Notifications'); //PENDING
 
         //Account administration
-        console.log('9. Close Session'); // Exit  - TODO: Will go down as I add more options
+        console.log('10. Close Session'); // Exit  - TODO: Will go down as I add more options
 
         // Communication with others - WIP
 
@@ -68,14 +75,11 @@ class Client_XMPP {
                         }
                     });
                     break;
-                case '3': // Register new user
-                    this.registerUser();
-                    break;
-                case '4': // Show all contacts and their status
+                case '3': // Show all contacts and their status
                     await this.mostrarUsuarios();
                     await this.showMenu();
                     break;
-                case '5': // Add user to contacts
+                case '4': // Add user to contacts
                     
                     console.log("1. Agregar usuario a contactos");
                     console.log("2. Aceptar solicitudes pendientes");
@@ -103,18 +107,18 @@ class Client_XMPP {
                         };
                     });
                     break;
-                case '6': // Show user details
+                case '5': // Show user details
                     rl.question("Enter the user you want to see the details of: ", async(user) => {
                         await this.showUserDetails(user);
                         rl.close();
                     });
                     break;
-                case '7': // Group conversation
+                case '6': // Group conversation
                     console.log("Not implemented yet");
                     rl.close();
                     await this.showMenu();
                     break;
-                case '8': // Set presence message
+                case '7': // Set presence message
                     rl.question("Enter your presence state: ", async(presenceState) => {
                         rl.question("Enter your presence message: ", async(message) => {
                             await this.setPresenceMessage(presenceState, message);
@@ -122,7 +126,18 @@ class Client_XMPP {
                         });
                     });
                     break;
-                case '9':
+                case '8': // Send/Receive files
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;
+                case '9': // Send/Receive notifications
+                    console.log("Not implemented yet");
+                    rl.close();
+                    await this.showMenu();
+                    break;    
+
+                case '10':
                     console.log("Exiting...");
                     const disconnect = async() => {
                         await this.xmpp.send(xml("presence", {type: "unavailable"}))
@@ -154,24 +169,63 @@ class Client_XMPP {
         });
 
         this.xmpp.on("error", (err) => {
-            console.error(err);
+            if(err.condition == "not-authorized") {
+                console.error("Error while logging in");
+            };
         });
 
         this.xmpp.on("online", async () => {
-            await this.xmpp.send(xml("presence", {type: "available"}));
+            await this.xmpp.send(xml("presence", {type: "online"}));
+
+            this.xmpp.on("stanza", (stanza) => {
+                if(stanza.is('message') && stanza.attrs.type == 'chat') {
+                    const from = stanza.attrs.from;
+                    const body = stanza.getChildText("body");
+                    const message = {from, body};
+
+                    if (body) {
+                        console.log(`Received message from ${from.split('@')[0]}:`, body);
+                    }
+                }
+
+                else if (stanza.is('presence') && stanza.attrs.type === 'subscribe') {
+                    const from = stanza.attrs.from;
+                    this.receivedSubscriptions.push(from);
+                    console.log("Received subscription request from:", from.split('@')[0]);
+                    console.log("Request message:", stanza.getChildText("status"));
+                }
+                
+                else if (stanza.is('message') && stanza.attrs.from.includes('@conference.alumchat.xyz')) {
+                    const groupchat = stanza.attrs.from
+                    const to = stanza.attrs.to                    
+            
+                    this.receivedGroupChatInvites.push(groupchat)
+            
+                    // Si el to no tiene una diagonal, entonces se imprime la invitación.
+                    if (!to.includes('/')) {
+                      console.log("Group chat invitation from: ", groupchat)
+                    }
+                }
+                
+            });
+
         });
 
-        await this.xmpp.start();
+        await this.xmpp.start().then(()=> {this.loginState = true}).catch((err) => {
+            if(err.condition == "not-authorized") {
+                console.error("This user may not exist in the server. Please try again.");
+            };
+        });
     };
 
     async addContacts(jid) {
 
         const presence = xml("presence", {type: "subscribe", to: jid + "@alumchat.xyz"});
         this.xmpp.send(presence).then(() => {
-            console.log("Solicitud de contacto enviada a: ", jid);
+            console.log("Contact request sent to: ", jid);
             this.showMenu();
         }).catch((err) => {
-            console.error("Error al agregar contacto: ", err);
+            console.error("Error when adding contact: ", err);
         });
     };
 
@@ -188,7 +242,7 @@ class Client_XMPP {
                     const subscription = user.attrs.subscription;
                     console.log("Contact:", jid, "Name:", name, "Subscription:", subscription);
                 } else {
-                    console.log("No se encontró el usuario");
+                    console.log("User not found");
                 }
 
                 this.showMenu();
@@ -231,9 +285,9 @@ class Client_XMPP {
 
         this.xmpp.send(requestContacts)
         .then(() => {
-            console.log("Solicitando contacos...");
+            console.log("Requesting Contacts...");
         }).catch((err) => {
-            console.error("Error al solicitar contactos: ", err);
+            console.error("Error when requesting contacts: ", err);
         });
 
         this.xmpp.on("stanza", (stanza) => {
@@ -257,9 +311,9 @@ class Client_XMPP {
                         const jid = contact.attrs.jid;
                         const name = contact.attrs.name;
                         const subscription = contact.attrs.subscription;
-                        console.log("Contacto:", jid, "Name:", name, "Subscription:", subscription);
+                        console.log("Contact:", jid, "Name:", name, "Subscription:", subscription);
                     } else {
-                        console.log("Contacto:", from, "Show:", show, "Status:", status);
+                        console.log("Contact:", from, "Show:", show, "Status:", status);
                     }
 
                 })
@@ -267,49 +321,34 @@ class Client_XMPP {
             });
     };
 
-    async registerUser() {
-        this.xmpp = client({
-            service: this.service,
-            domain: this.domain,
-            username: this.username,
-            password: this.password,
+    async registerUser(username, password) {
+        netClient.connect(5222, 'alumchat.xyz', function() {
+            netClient.write("<stream:stream to='alumchat.xyz' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>");
         });
 
-        this.xmpp.reconnect.stop();
-        this.xmpp.timeout = 5000;
+        netClient.on('data', async(data) => {
+            if(data.toString().includes("<stream:features>")) {
+                const register = `
+                <iq type="set" id="reg_1" mechanism='PLAIN'>
+                <query xmlns="jabber:iq:register">
+                  <username>${username}</username>
+                  <password>${password}</password>
+                </query>
+              </iq>
+              `;
+                await netClient.write(register);
+            } else if(data.toString().includes('<iq type="result"')) {
+                console.log("User registered into server");
+                this.registerState = true;
 
-        this.xmpp.on("online", async (address) => {
-            console.log("Online!");
-            await this.xmpp.iqCaller.request(
-              xml('iq', {type: 'get', to: 'alumchat.xyz'},
-                xml('query', {xmlns: 'jabber:iq:register'})
-              )
-            );
-            await this.xmpp.iqCaller.set(
-              xml("query", {xmlns: "jabber:iq:register"},
-                xml("username", {}, `"${this.username}"`),
-                xml("password", {}, `"${this.password}"`),
-                xml("email", {}, "email@email.com")
-              ),
-              'alumchat.xyz'
-            )
-          });
-        
-        this.xmpp.on("status", (status) => {
-            console.debug("status", status);
+            } else if(data.toString().includes('<iq type="error"')) {
+                console.log("XMPP Server error");
+            }
         });
 
-        this.xmpp.on("stanza", async (stanza) => {
-            console.log("Incoming stanza: ", stanza.toString());
+        netClient.on('close', function() {
+            console.log('Connection closed');
         });
-
-        this.xmpp.on("error", (err) => {
-            console.error(err);
-        });
-
-
-
-        await this.xmpp.start();
     }
 
     async sendMessage(destinatario, mensaje) {
@@ -329,10 +368,10 @@ class Client_XMPP {
 };
 
 async function main() {
-    // loginMenu();
-    const client = new Client_XMPP("andres2002", "andres2002");
-    await client.connect();
-    client.showMenu();
+    loginMenu();
+    // const client = new Client_XMPP("andres2002", "andres2002");
+    // await client.connect();
+    // client.showMenu();
 };
 
 async function loginMenu() {
@@ -352,23 +391,22 @@ async function loginMenu() {
                 rl.question("Enter your username: ", (username) => {
                     rl.question("Enter your password: ", async(password) => {
                         const client = new Client_XMPP(username, password);
-                        let loginState = false
                         try {
                             await client.connect();
-                            loginState = true;
                         } catch (error) {
                             console.log("Error logging in");
                             rl.close();
                             loginMenu();
                         }
-                        if(loginState == true) {
+                        if(client.loginState == false) {
+                            console.log("Error logging in");
+                            rl.close();
+                            loginMenu();
+                        } else if (client.loginState == true) {
                             console.log("Logged in succesfully");
                             rl.close();
                             client.showMenu();
                         }
-
-
-
                     });
                 });
                 break;
@@ -376,20 +414,13 @@ async function loginMenu() {
                 rl.question("Enter your username: ", (username) => {
                     rl.question("Enter your password: ", async(password) => {
                         const client = new Client_XMPP(username, password);
-                        let registerState = false;
                         try {
-                            await client.registerUser();
-                            registerState = true;
+                            await client.registerUser(client.username, client.password);
+                            loginMenu();
                         } catch (error) {
                             console.log("Error registering user");
                             rl.close();
                             loginMenu();
-                        }
-                        if(registerState == true) {
-                            console.log("User registered succesfully");
-                            await client.connect();
-                            rl.close();
-                            client.showMenu();
                         }
                     });
                 });
