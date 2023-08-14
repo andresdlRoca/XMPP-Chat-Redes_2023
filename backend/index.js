@@ -2,6 +2,7 @@ const express = require('express');
 const readline = require('readline');
 const { client, xml } = require("@xmpp/client");
 const debug = require("@xmpp/debug");
+const fs = require('fs');
 const { join } = require("path");
 const net = require("net");
 const netClient = require("net").Socket();
@@ -34,18 +35,16 @@ class Client_XMPP {
         console.log(`\nCurrent User: ${this.username}`);
         console.log('\nMenu:');
         console.log('1. Send Message'); //DONE
-        console.log('2. Delete account from server'); //PENDING
+        console.log('2. Delete account from server'); //DONE
         console.log('3. Show contacts and their info');//DONE
-        console.log('4. Add users as contacts'); //TODO: Subscription list
+        console.log('4. Add users as contacts'); //DONE
         console.log('5. Show details of a user'); //DONE
         console.log('6. Group chatting'); // PENDING
         console.log('7. Set presence message'); //DONE
         console.log('8. Send/Receive files');// PENDING
         // TODO: Enviar/Recibir archivos
-        console.log('9. Send/Receive Notifications'); //PENDING
-
         //Account administration
-        console.log('10. Close Session'); // Exit  - TODO: Will go down as I add more options
+        console.log('9. Close Session'); // Exit  - TODO: Will go down as I add more options
 
         // Communication with others - WIP
 
@@ -83,7 +82,7 @@ class Client_XMPP {
                     console.log("1. Agregar usuario a contactos");
                     console.log("2. Aceptar solicitudes pendientes");
                 
-                    rl.question("Elige tu opcion: ", async(answer) => {
+                    rl.question("Choose your option: ", async(answer) => {
 
                         switch (answer) {
                             case '1': // Add user to contacts
@@ -128,9 +127,45 @@ class Client_XMPP {
                     });
                     break;
                 case '6': // Group conversation
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
+                    console.log("1. Create group chat");
+                    console.log("2. Interact with group chat");
+                    console.log("3. Join group chat (From Invites)");
+                    console.log("4. Invite to group chat");
+
+                    rl.question("Choose your option: ", async(answer) => {
+                        switch(answer) {
+                            case '1': // Create group chat
+                                rl.question("Enter the name of the group chat: ", async(groupchat) => {
+                                    await this.createGC(groupchat);
+                                    rl.close();
+                                });
+                                break;
+                            case '2': // Send message to group chat
+                                break;
+                            case '3': // Join group chat
+                                if(this.receivedGroupChatInvites.length == 0) {
+                                    console.log("No pending invitations");
+                                    await this.showMenu();
+                                } else {
+                                    console.log("Here are your pending invitations: ");
+                                    this.receivedGroupChatInvites.forEach((invitation) => {
+                                        console.log("- " + invitation.split('@')[0]);
+                                    });
+                                    rl.question("Enter the group chat you want to join: ", async(groupchat) => {
+                                        
+                                    });
+                                }
+                                break;
+                            case '4': // Invite to group chat
+                                
+                                break;
+                            default:
+                                console.log("Invalid option");
+                                rl.close();
+                                await this.showMenu();
+                                break;
+                        };
+                    });
                     break;
                 case '7': // Set presence message
                     rl.question("Enter your presence state: ", async(presenceState) => {
@@ -141,17 +176,17 @@ class Client_XMPP {
                     });
                     break;
                 case '8': // Send/Receive files
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;
-                case '9': // Send/Receive notifications
-                    console.log("Not implemented yet");
-                    rl.close();
-                    await this.showMenu();
-                    break;    
+                    
+                    rl.question("Enter the user you want to send the file to: ", async(user) => {
+                        rl.question("Enter the path of the file you want to send: ", async(file) => {
+                            // await this.sendFile(user, file);
+                            rl.close();
+                            await this.showMenu();
+                        });
+                    });
+                    break; 
 
-                case '10':
+                case '9':
                     console.log("Exiting...");
                     const disconnect = async() => {
                         await this.xmpp.send(xml("presence", {type: "unavailable"}))
@@ -253,6 +288,17 @@ class Client_XMPP {
         });
     };
 
+
+    async createGC(roomName) {
+        
+
+    }
+
+
+    async joinGC(roomName) {
+
+    }
+
     async showUserDetails(jid) {
         const username = jid + "@alumchat.xyz";
 
@@ -288,10 +334,6 @@ class Client_XMPP {
 
     };
 
-    async showSubscriptionsRequests() {
-        // TODO: Implementar array que guarde las solicitudes de contacto
-    };
-
     async setPresenceMessage(presenceState, message) {
         const presence = xml("presence", {}, xml('show', {}, presenceState), xml('status', {}, message));
         await this.xmpp.send(presence);
@@ -318,7 +360,7 @@ class Client_XMPP {
             if (stanza.is("iq") && stanza.attrs.type === "result") {
                 const contacts = stanza.getChild("query", "jabber:iq:roster").getChildren('item');
                 
-                console.log("Lista de contactos: ");
+                console.log("Contact list: ");
                 contacts.forEach((contact) => {
                     console.log("JID", contact.attrs.jid);
                     console.log("Name", contact.attrs.name);
@@ -377,7 +419,7 @@ class Client_XMPP {
 
     async sendMessage(destinatario, mensaje) {
         if (!this.xmpp) {
-        throw new Error("El cliente XMPP no está conectado. Primero llama al método 'connect()'.");
+        throw new Error("The XMPP client is not connected yet.");
         };
 
         const message = xml(
@@ -393,9 +435,6 @@ class Client_XMPP {
 
 async function main() {
     loginMenu();
-    // const client = new Client_XMPP("andres2002", "andres2002");
-    // await client.connect();
-    // client.showMenu();
 };
 
 async function loginMenu() {
@@ -463,7 +502,7 @@ async function loginMenu() {
 }
 
 main().catch((error) => {
-    console.error("Error al enviar el mensaje:", error);
+    console.error("Fatal Error when sending request:", error);
 });
 
 app.listen(3000, () => {
