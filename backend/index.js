@@ -19,7 +19,6 @@ class Client_XMPP {
         this.domain = domain;
         this.xmpp = null;
         this.loginState = false;
-        this.MAX_LENGTH = 100;
         this.messages = [];
         this.receivedSubscriptions = [];
         this.receivedGroupChatInvites = [];
@@ -90,14 +89,29 @@ class Client_XMPP {
                             case '1': // Add user to contacts
                                 rl.question("Enter the user you want to add: ", async(user) => {
                                     await this.addContacts(user);
+                                    console.log("Request sent");
                                     rl.close();
                                     await this.showMenu();
                                 });
                                 break;
                             case '2': // Accept pending requests
-                                console.log("Not implemented yet");
-                                rl.close();
-                                await this.showMenu();
+                                if(this.receivedSubscriptions.length == 0) {
+                                    console.log("No pending requests");
+                                    await this.showMenu();
+                                } else {
+                                    console.log("Here are your pending requests: ");
+                                    this.receivedSubscriptions.forEach((request) => {
+                                        console.log("- " + request.split('@')[0]);
+                                    });
+                                    rl.question("Enter the user you want to accept: ", async(user) => {
+                                        const presence = xml("presence", {type: "subscribed", to: user + "@alumchat.xyz"});
+                                        await this.xmpp.send(presence);
+                                        console.log("Request accepted");
+                                        this.receivedSubscriptions.splice(this.receivedSubscriptions.indexOf(user), 1);
+                                        rl.close();
+                                        await this.showMenu();
+                                    });
+                                }
                                 break;
                             default:
                                 console.log("Invalid option");
@@ -350,7 +364,7 @@ class Client_XMPP {
             } else if(data.toString().includes('<iq type="result"')) {
                 console.log("User registered into server");
                 this.registerState = true;
-
+                await netClient.end();
             } else if(data.toString().includes('<iq type="error"')) {
                 console.log("XMPP Server error");
             }
