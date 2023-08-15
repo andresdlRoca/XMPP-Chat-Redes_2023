@@ -149,7 +149,7 @@ class Client_XMPP {
                                 }
 
                                 rl.question("Enter the group chat you want to join: ", async(groupchat) => {
-                                    this.joinGC(groupchat);
+                                    this.createGC(groupchat);
                                 });
                                 break;
                             case '4': // Invite to group chat
@@ -304,7 +304,7 @@ class Client_XMPP {
         const roomId = roomName + "@conference.alumchat.xyz";
 
         await this.xmpp.send(xml("presence", {to: roomId + "/" + this.username}));
-        console.log("Group chat created succesfully");
+        console.log("Joined group chat succesfully");
 
         const rl2 = readline.createInterface({
             input : process.stdin,
@@ -314,12 +314,14 @@ class Client_XMPP {
         rl2.on("line", async(line) => {
 
             if(line.trim() === "/exit") {
+                console.log("Leaving group chat...");
                 rl2.close();
                 await this.showMenu();
             } else if(line.split(" ")[0] === "/invite") {
                 const userToInvite = line.split(" ")[1];
                 const inviteRequest = xml("message", {to: roomId}, xml("x", {xmlns: "http://jabber.org/protocol/muc#user"}, xml("invite", {to: userToInvite + "@alumchat.xyz"}, xml("reason", {}, "Join the group!"))));
                 await this.xmpp.send(inviteRequest);
+                console.log("Invitation sent to: ", userToInvite);
             } else {
                 const message = xml("message", {to: roomId, type: "groupchat"}, xml("body", {}, line));
                 await this.xmpp.send(message);
@@ -343,9 +345,9 @@ class Client_XMPP {
     }
 
 
-    async joinGC(roomName) {
+    // async joinGC(roomName) {
 
-    }
+    // }
 
     async showUserDetails(jid) {
         const username = jid + "@alumchat.xyz";
