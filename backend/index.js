@@ -179,7 +179,7 @@ class Client_XMPP {
                     
                     rl.question("Enter the user you want to send the file to: ", async(user) => {
                         rl.question("Enter the path of the file you want to send: ", async(file) => {
-                            // await this.sendFile(user, file);
+                            await this.sendFile(user, file);
                             rl.close();
                             await this.showMenu();
                         });
@@ -286,6 +286,21 @@ class Client_XMPP {
         }).catch((err) => {
             console.error("Error when adding contact: ", err);
         });
+    };
+
+    async sendFile(sendTo, filePath) {
+        const file = fs.statSync(filePath);
+        const fileSize = file.size;
+        const fileName = filePath.split('\\').pop();
+
+        const url = `http://${this.domain}:5222/file-uploaded/${fileName}`;
+
+        const fileMeta = xml('x', {xmlns: 'jabber:x:oob'}, xml('url', {}, url), xml('desc', {}, `${fileName} (${fileSize} bytes)`));
+
+        const message = `Hi, I'm sending you a file ${url}`
+
+        await this.sendMessage(sendTo, message);
+        console.log("File sent succesfully");
     };
 
 
