@@ -128,33 +128,29 @@ class Client_XMPP {
                     break;
                 case '6': // Group conversation
                     console.log("1. Create group chat");
-                    console.log("2. Interact with group chat");
-                    console.log("3. Join group chat (From Invites)");
-                    console.log("4. Invite to group chat");
+                    console.log("2. Join group chat (From Invites)");
 
                     rl.question("Choose your option: ", async(answer) => {
                         switch(answer) {
                             case '1': // Create group chat
                                 rl.question("Enter the name of the group chat: ", async(groupchat) => {
-                                    await this.createGC(groupchat);
+                                    this.createGC(groupchat);
                                     rl.close();
                                 });
                                 break;
-                            case '2': // Send message to group chat
-                                break;
-                            case '3': // Join group chat
+                            case '2': // Join group chat
                                 if(this.receivedGroupChatInvites.length == 0) {
                                     console.log("No pending invitations");
-                                    await this.showMenu();
                                 } else {
                                     console.log("Here are your pending invitations: ");
                                     this.receivedGroupChatInvites.forEach((invitation) => {
                                         console.log("- " + invitation.split('@')[0]);
                                     });
-                                    rl.question("Enter the group chat you want to join: ", async(groupchat) => {
-                                        
-                                    });
                                 }
+
+                                rl.question("Enter the group chat you want to join: ", async(groupchat) => {
+                                    this.joinGC(groupchat);
+                                });
                                 break;
                             case '4': // Invite to group chat
                                 
@@ -305,7 +301,44 @@ class Client_XMPP {
 
 
     async createGC(roomName) {
-        
+        const roomId = roomName + "@conference.alumchat.xyz";
+
+        await this.xmpp.send(xml("presence", {to: roomId + "/" + this.username}));
+        console.log("Group chat created succesfully");
+
+        const rl2 = readline.createInterface({
+            input : process.stdin,
+            output : process.stdout
+        });
+
+        rl2.on("line", async(line) => {
+
+            if(line.trim() === "/exit") {
+                rl2.close();
+                await this.showMenu();
+            } else if(line.split(" ")[0] === "/invite") {
+                const userToInvite = line.split(" ")[1];
+                const inviteRequest = xml("message", {to: roomId}, xml("x", {xmlns: "http://jabber.org/protocol/muc#user"}, xml("invite", {to: userToInvite + "@alumchat.xyz"}, xml("reason", {}, "Join the group!"))));
+                await this.xmpp.send(inviteRequest);
+            } else {
+                const message = xml("message", {to: roomId, type: "groupchat"}, xml("body", {}, line));
+                await this.xmpp.send(message);
+            }
+        });
+
+        this.xmpp.on('stanza', async (stanza) => {
+            if (stanza.is('message') && stanza.getChild('body')) {
+  
+              if (stanza.attrs.type === "groupchat") {
+                const from = stanza.attrs.from;
+                const body = stanza.getChildText("body");
+  
+                if (from && body) {
+                  console.log(`${from}: ${body}`);
+                }
+              }
+            }
+          });
 
     }
 
