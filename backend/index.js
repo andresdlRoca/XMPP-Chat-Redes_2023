@@ -3,29 +3,34 @@ const readline = require('readline');
 const { client, xml } = require("@xmpp/client");
 const debug = require("@xmpp/debug");
 const fs = require('fs');
-const { join } = require("path");
-const net = require("net");
-const netClient = require("net").Socket();
-const fetch = require("node-fetch");
+const netClient = require("net").Socket(); // Required for user registration
 
 app = express();
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"; // Allows self-signed certificates
 
+
+// The main XMPP client class
 class Client_XMPP {
     constructor(username, password, service = "xmpp://alumchat.xyz:5222", domain = "alumchat.xyz") {
+        //General info about server and client 
         this.username = username;
         this.password = password;
         this.service = service;
         this.domain = domain;
+
+        //Client info
         this.xmpp = null;
         this.loginState = false;
+        
+        // User specific messaging and subscription info
         this.messages = [];
         this.receivedSubscriptions = [];
         this.receivedGroupChatInvites = [];
     }
 
 
+    //Main Menu
     showMenu = async() => {
         const rl = readline.createInterface({
             input : process.stdin,
@@ -34,19 +39,17 @@ class Client_XMPP {
 
         console.log(`\nCurrent User: ${this.username}`);
         console.log('\nMenu:');
-        console.log('1. Send Message'); //DONE
-        console.log('2. Delete account from server'); //DONE
-        console.log('3. Show contacts and their info');//DONE
-        console.log('4. Add users as contacts'); //DONE
-        console.log('5. Show details of a user'); //DONE
-        console.log('6. Group chatting'); // PENDING
-        console.log('7. Set presence message'); //DONE
-        console.log('8. Send/Receive files');// PENDING
-        // TODO: Enviar/Recibir archivos
-        //Account administration
-        console.log('9. Close Session'); // Exit  - TODO: Will go down as I add more options
+        console.log('1. Send Message'); 
+        console.log('2. Delete account from server'); 
+        console.log('3. Show contacts and their info');
+        console.log('4. Add users as contacts'); 
+        console.log('5. Show details of a user'); 
+        console.log('6. Group chatting'); 
+        console.log('7. Set presence message');
+        console.log('8. Send/Receive files'); 
 
-        // Communication with others - WIP
+        //Account administration
+        console.log('9. Close Session'); // Exit
 
         //Menu options
         rl.question('Select an option: ', async(answer) => {
@@ -201,6 +204,8 @@ class Client_XMPP {
 
     };
 
+
+    // Will delete the account from the server
     async deleteAccount() {
         const deleteRequest = xml("iq", {type: "set", id: "unreg1"}, xml("query", {xmlns: "jabber:iq:register"}, xml("remove", {})));
         this.xmpp.send(deleteRequest).then(() => {
@@ -211,6 +216,7 @@ class Client_XMPP {
         });
     }
 
+    // Will connect the client to the server, and will handle the different notifications and messages
     async connect() {
         this.xmpp = client({
             service: this.service,
@@ -229,11 +235,14 @@ class Client_XMPP {
             };
         });
 
+        //Sets state as online
         this.xmpp.on("online", async () => {
             await this.xmpp.send(xml("presence", {type: "online"}));
 
+
+            // Handles the different notifications and messages
             this.xmpp.on("stanza", (stanza) => {
-                if(stanza.is('message') && stanza.attrs.type == 'chat') {
+                if(stanza.is('message') && stanza.attrs.type == 'chat') {// Handles incoming chat 1 on 1 messaging
                     const from = stanza.attrs.from;
                     const body = stanza.getChildText("body");
                     const message = {from, body};
@@ -273,6 +282,7 @@ class Client_XMPP {
         });
     };
 
+    // Adds contacts to the user's contact list by requesting subscription
     async addContacts(jid) {
 
         const presence = xml("presence", {type: "subscribe", to: jid + "@alumchat.xyz"});
@@ -284,6 +294,7 @@ class Client_XMPP {
         });
     };
 
+    // Handles the file sending to a url - WIP
     async sendFile(sendTo, filePath) {
         const file = fs.statSync(filePath);
         const fileSize = file.size;
@@ -300,9 +311,11 @@ class Client_XMPP {
     };
 
 
+    // Handles de creation and joining of group chats
     async createGC(roomName) {
         const roomId = roomName + "@conference.alumchat.xyz";
 
+        // If group chat is not found in the server, it will be created
         await this.xmpp.send(xml("presence", {to: roomId + "/" + this.username}));
         console.log("Joined group chat succesfully");
 
@@ -313,6 +326,7 @@ class Client_XMPP {
 
         rl2.on("line", async(line) => {
 
+            // Handles certain commands with the group chat
             if(line.trim() === "/exit") {
                 console.log("Leaving group chat...");
                 rl2.close();
@@ -344,11 +358,7 @@ class Client_XMPP {
 
     }
 
-
-    // async joinGC(roomName) {
-
-    // }
-
+    // Shows the details of a specific user
     async showUserDetails(jid) {
         const username = jid + "@alumchat.xyz";
 
@@ -384,6 +394,7 @@ class Client_XMPP {
 
     };
 
+    // Sets presence message and status
     async setPresenceMessage(presenceState, message) {
         const presence = xml("presence", {}, xml('show', {}, presenceState), xml('status', {}, message));
         await this.xmpp.send(presence);
@@ -392,6 +403,8 @@ class Client_XMPP {
         this.showMenu();
     };
 
+
+    // Shows all contacts and some of their info such as subscription type, jid and name
     async mostrarUsuarios() {
         const requestContacts = xml(
             "iq",
@@ -417,6 +430,8 @@ class Client_XMPP {
                     console.log("Subscription", contact.attrs.subscription);
                 });
 
+
+                // Handles the contact presence and status requests
                 this.xmpp.on("presence", (presence) => {
                     const from = presence.attrs.from;
                     const show = presence.getChild("show");
@@ -437,11 +452,13 @@ class Client_XMPP {
             });
     };
 
+    // Handles the user registration
     async registerUser(username, password) {
         netClient.connect(5222, 'alumchat.xyz', function() {
             netClient.write("<stream:stream to='alumchat.xyz' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>");
         });
 
+        //Uses the net module to manually set the valid registering request
         netClient.on('data', async(data) => {
             if(data.toString().includes("<stream:features>")) {
                 const register = `
@@ -467,11 +484,9 @@ class Client_XMPP {
         });
     }
 
-    async sendMessage(destinatario, mensaje) {
-        if (!this.xmpp) {
-        throw new Error("The XMPP client is not connected yet.");
-        };
 
+    // Handles the basic 1 on 1 messaging
+    async sendMessage(destinatario, mensaje) {
         const message = xml(
         "message",
         { type: "chat", to: destinatario + "@alumchat.xyz" },
@@ -487,6 +502,7 @@ async function main() {
     loginMenu();
 };
 
+// Handles login and registration
 async function loginMenu() {
     const rl = readline.createInterface({
         input : process.stdin,
