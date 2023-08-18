@@ -32,7 +32,6 @@ By successfully achieving these general objectives, the project aims to deliver 
 - @xmpp/client ^0.13.1
 - @xmpp/debug ^0.13.0
 - dotenv 16.3.1
-- express ^4.18.2
 - net ^1.0.2
 
 ## Usage
