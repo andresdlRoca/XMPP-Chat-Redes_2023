@@ -571,6 +571,6 @@ main().catch((error) => {
     console.error("Fatal Error when sending request:", error);
 });
 
-app.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
+// app.listen(3000, () => {
+//     console.log('Server running on port 3000');
+// });
