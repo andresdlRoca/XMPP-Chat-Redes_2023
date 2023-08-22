@@ -80,6 +80,9 @@ Which exits the group chat the user joined.
 - /invite {user}
 This one can be used to invite other users by only typing in their username after the "/invite" prompt.
 
+- /file {path}
+Used to send a file through a groupchat, the path must be relative to the backend directory.
+
 Other than these reserved commands the user can type normally and a message will be sent to the group chat.
 
 ## Author  
