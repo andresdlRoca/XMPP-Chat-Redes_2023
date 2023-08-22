@@ -2,6 +2,7 @@ const express = require('express');
 const readline = require('readline');
 const { client, xml } = require("@xmpp/client");
 const debug = require("@xmpp/debug");
+const path = require('path');
 const fs = require('fs');
 const netClient = require("net").Socket(); // Required for user registration
 
@@ -296,18 +297,32 @@ class Client_XMPP {
 
     // Handles the file sending to a url - WIP
     async sendFile(sendTo, filePath) {
-        const file = fs.statSync(filePath);
-        const fileSize = file.size;
-        const fileName = filePath.split('\\').pop();
 
-        const url = `http://${this.domain}:5222/file-uploaded/${fileName}`;
+        const user = sendTo + "@alumchat.xyz";
+        
+        const file = fs.readFileSync(filePath);
+        const fileName = path.basename(filePath);
+        const base64File = file.toString('base64');
 
-        const fileMeta = xml('x', {xmlns: 'jabber:x:oob'}, xml('url', {}, url), xml('desc', {}, `${fileName} (${fileSize} bytes)`));
+        const message = xml("message", {type: 'chat', to: user}, xml("body", {}, ' File: ' +fileName + ' content: ' + base64File));
+        await this.xmpp.send(message);
 
-        const message = `Hi, I'm sending you a file ${url}`
-
-        await this.sendMessage(sendTo, message);
         console.log("File sent succesfully");
+    };
+
+    async sendFileGC(sendTo, filePath) {
+
+        const user = sendTo
+        
+        const file = fs.readFileSync(filePath);
+        const fileName = path.basename(filePath);
+        const base64File = file.toString('base64');
+
+        const message = xml("message", {type: 'groupchat', to: user}, xml("body", {}, ' File: ' +fileName + ' content: ' + base64File));
+        await this.xmpp.send(message);
+
+        console.log("File sent succesfully");
+
     };
 
 
@@ -336,6 +351,10 @@ class Client_XMPP {
                 const inviteRequest = xml("message", {to: roomId}, xml("x", {xmlns: "http://jabber.org/protocol/muc#user"}, xml("invite", {to: userToInvite + "@alumchat.xyz"}, xml("reason", {}, "Join the group!"))));
                 await this.xmpp.send(inviteRequest);
                 console.log("Invitation sent to: ", userToInvite);
+            } else if(line.split(" ")[0] === "/file") {
+                const filePath = line.split(" ")[1];
+                await this.sendFileGC(roomId, filePath);
+
             } else {
                 const message = xml("message", {to: roomId, type: "groupchat"}, xml("body", {}, line));
                 await this.xmpp.send(message);
